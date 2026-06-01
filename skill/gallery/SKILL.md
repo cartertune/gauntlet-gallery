@@ -77,12 +77,17 @@ Treat the procs as a **starting guess** and verify against reality:
 - **Multi-process apps** (web + api, a monorepo `apps/*`): list every process in
   `procs`; set `readyPort` to the one you open in the browser. If a frontend
   dev-proxy hardcodes a backend port, run the backend on **exactly** that port.
-- **Heavy / externally-managed backends** (a Spring/Java service needing a
-  specific JDK + Postgres + Auth0, or any dependency the user runs themselves):
-  do **not** auto-launch it — that's fragile. Instead list it under
-  `watchPorts` (e.g. `"watchPorts": [{ "label": "api", "port": 8080 }]`). The
-  gallery polls those ports and shows a dashed status chip (up/down) without
-  spawning them, and you note in `notes` how the user should start it.
+- **Backends/dependencies — prefer to launch them.** If you can find a reliable
+  start command, add the backend as a normal `proc` (or a `watchPort` *with* a
+  `cmd`) so the gallery launches it. Every port chip is clickable: clicking a
+  down chip starts that proc.
+  - A `watchPort` with a launch spec gets started on click:
+    `"watchPorts": [{ "label": "api", "port": 8080, "cmd": "./mvnw", "args": ["spring-boot:run"], "cwd": "/abs/backend" }]`
+  - Only when a backend is genuinely too fragile to auto-boot (needs a specific
+    JDK + Postgres + Auth0 that may not be set up) — leave off `cmd` and add a
+    `startHint` instead: `{ "label": "api", "port": 8080, "startHint": "cd backend && ./mvnw spring-boot:run (needs Java 17+, Postgres :5432)" }`.
+    The gallery polls it, shows a dashed chip, and clicking it surfaces +
+    copies that command instead of launching.
 - **Data deps** (Postgres/Docker, a `.env` with keys): add to `watchPorts` if
   there's a port worth showing (e.g. Postgres `:5432`), and note them; don't
   try to provision them.

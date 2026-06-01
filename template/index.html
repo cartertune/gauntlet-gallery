@@ -187,8 +187,13 @@
     display: inline-flex; align-items: center; gap: 6px;
     font-family: var(--mono); font-size: 10px; color: var(--ink-soft);
     border: 1px solid var(--hair); border-radius: 999px; padding: 3px 9px 3px 7px;
-    background: var(--paper);
+    background: var(--paper); cursor: pointer;
+    transition: border-color .14s ease, transform .1s ease;
   }
+  .pchip:hover { border-color: var(--ink-soft); }
+  .pchip:active { transform: scale(0.96); }
+  .pchip.up { cursor: default; }
+  .pchip.up:hover { border-color: var(--ink); }
   .pchip .pport { color: var(--ink); }
   .pchip .pdot {
     width: 7px; height: 7px; border-radius: 50%;
@@ -347,14 +352,16 @@
     // dot), PLUS any watch-only ports (externally-managed deps the gallery polls
     // but doesn't launch — e.g. a backend/DB you start yourself, shown dashed).
     function portChips(p) {
-      const launched = (p.procs && p.procs.length) ? p.procs.map((pp) => ({ ...pp, watch: false })) : [{ label: "web", port: p.port, watch: false }];
-      const watched = (p.watchPorts || []).map((w) => ({ label: w.label || ("watch:" + w.port), port: w.port, watch: true }));
+      const launched = (p.procs && p.procs.length) ? p.procs.map((pp) => ({ ...pp, watch: false, launchable: true })) : [{ label: "web", port: p.port, watch: false, launchable: true }];
+      const watched = (p.watchPorts || []).map((w) => ({ label: w.label || ("watch:" + w.port), port: w.port, watch: true, launchable: !!w.launchable, startHint: w.startHint || null }));
       return [...launched, ...watched].map((pp) => {
         if (pp.port == null) return "";
-        return `<span class="pchip${pp.watch ? " watch" : ""}" id="pchip-${p.id}-${pp.port}" data-port="${pp.port}"${pp.watch ? ' title="external — start this yourself; the gallery only watches it"' : ""}>`
-          + `<span class="pdot"></span>${escapeHtml(pp.label)} <span class="pport">:${pp.port}</span></span>`;
+        const title = pp.launchable ? "Click to start" : "External — click for the start command";
+        return `<button type="button" class="pchip${pp.watch ? " watch" : ""}" id="pchip-${p.id}-${pp.port}" data-proj="${p.id}" data-label="${escAttr(pp.label)}" data-launchable="${pp.launchable ? 1 : 0}"${pp.startHint ? ` data-hint="${escAttr(pp.startHint)}"` : ""} title="${title}">`
+          + `<span class="pdot"></span>${escapeHtml(pp.label)} <span class="pport">:${pp.port}</span></button>`;
       }).join("");
     }
+    function escAttr(s){return String(s).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");}
 
     function entryHTML(p) {
       const svg = plateSVG(p);
@@ -524,6 +531,29 @@
       await api("/api/kill-all");
       for (const p of PROJECTS) local[p.id] = { starting: false };
       toast("Killed all projects"); e.currentTarget.disabled = false; refresh();
+    });
+
+    // Click a port chip to start it (delegated, survives re-render):
+    // - up chip: nothing to do.
+    // - launchable chip (a gallery-owned proc, or a watch port with a start
+    //   command): start just that proc.
+    // - external watch chip (no command): show + copy its start hint.
+    grid.addEventListener("click", async (e) => {
+      const chip = e.target.closest(".pchip");
+      if (!chip) return;
+      if (chip.classList.contains("up")) return;
+      const proj = chip.dataset.proj, label = chip.dataset.label;
+      if (chip.dataset.launchable !== "1") {
+        const hint = chip.dataset.hint || "Start this service yourself; it'll show up here once it's up.";
+        toast(hint); try { await navigator.clipboard.writeText(hint); } catch (_) {}
+        return;
+      }
+      chip.classList.add("starting");
+      const r = await api("/api/start-proc/" + encodeURIComponent(proj) + "/" + encodeURIComponent(label));
+      if (r && r.ok) toast(label + " — starting…");
+      else if (r && r.reason === "external") { const h = r.startHint || chip.dataset.hint || "Start it yourself."; toast(h); try { await navigator.clipboard.writeText(h); } catch (_) {} }
+      else toast("Couldn't start " + label);
+      refresh();
     });
 
     function applyStatus(id, st) {

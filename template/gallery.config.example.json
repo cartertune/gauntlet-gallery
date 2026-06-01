@@ -82,7 +82,11 @@
         }
       ],
       "watchPorts": [
-        { "label": "api", "port": 8080 }
+        {
+          "label": "api",
+          "port": 8080,
+          "startHint": "cd backend && ./mvnw spring-boot:run  (needs Java 17+, Postgres :5432)"
+        }
       ]
     }
   ]

@@ -122,6 +122,7 @@ async function statusFor(id) {
   const watched = await Promise.all((proj.watchPorts || []).map(async (w) => ({
     label: w.label || ("watch:" + w.port), port: w.port, watch: true,
     listening: w.port ? await isPortListening(w.port) : null,
+    launchable: !!w.cmd, startHint: w.startHint || null, // can the gallery start it?
   })));
   return {
     id,
@@ -129,11 +130,28 @@ async function statusFor(id) {
     listening: await isPortListening(proj.readyPort || proj.port),
     pids: s ? s.procs.map((p) => p.pid).filter(Boolean) : [],
     port: proj.port,
-    procs: [...launched, ...watched], // [{ label, port, watch, listening }]
+    procs: [...launched, ...watched], // [{ label, port, watch, listening, launchable?, startHint? }]
   };
 }
 
 // --- start / stop ----------------------------------------------------------
+// Spawn one process def and track it under the project.
+function spawnProc(id, def) {
+  const s = ensureState(id);
+  const child = spawn(def.cmd, def.args || [], {
+    cwd: def.cwd,
+    env: { ...process.env, FORCE_COLOR: "0", ...(def.env || {}) },
+    detached: true, // own process group so we can signal the whole tree
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  s.procs.push({ label: def.label || "proc", child, pid: child.pid });
+  appendLog(id, def.label || "proc", `spawned: ${def.cmd} ${(def.args || []).join(" ")} (pid ${child.pid})`);
+  child.stdout.on("data", (d) => appendLog(id, def.label || "proc", d));
+  child.stderr.on("data", (d) => appendLog(id, def.label || "proc", d));
+  child.on("exit", (code, sig) => appendLog(id, def.label || "proc", `exited (code=${code} signal=${sig})`));
+  child.on("error", (err) => appendLog(id, def.label || "proc", `ERROR: ${err.message}`));
+}
+
 function startProject(id) {
   const proj = byId.get(id);
   if (!proj) throw new Error("unknown project " + id);
@@ -141,21 +159,25 @@ function startProject(id) {
   const s = ensureState(id);
   s.procs = [];
   s.logs.push(`──── starting ${proj.name} @ ${new Date().toISOString()} ────`);
-  for (const def of proj.procs || []) {
-    const child = spawn(def.cmd, def.args || [], {
-      cwd: def.cwd,
-      env: { ...process.env, FORCE_COLOR: "0", ...(def.env || {}) },
-      detached: true, // own process group so we can signal the whole tree
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    s.procs.push({ label: def.label || "proc", child, pid: child.pid });
-    appendLog(id, def.label || "proc", `spawned: ${def.cmd} ${(def.args || []).join(" ")} (pid ${child.pid})`);
-    child.stdout.on("data", (d) => appendLog(id, def.label || "proc", d));
-    child.stderr.on("data", (d) => appendLog(id, def.label || "proc", d));
-    child.on("exit", (code, sig) => appendLog(id, def.label || "proc", `exited (code=${code} signal=${sig})`));
-    child.on("error", (err) => appendLog(id, def.label || "proc", `ERROR: ${err.message}`));
-  }
+  for (const def of proj.procs || []) spawnProc(id, def);
   return { ok: true, started: (proj.procs || []).length };
+}
+
+// Start ONE proc by label: a launched proc, or a watch port carrying a launch
+// spec (cmd/args/cwd). Watch ports with no cmd return { ok:false, reason } so
+// the UI can show the start hint instead.
+function startProc(id, label) {
+  const proj = byId.get(id);
+  if (!proj) return { ok: false, reason: "unknown project" };
+  const s = ensureState(id);
+  const existing = s.procs.find((p) => p.label === label && p.child && p.child.exitCode === null && !p.child.killed);
+  if (existing) return { ok: true, already: true };
+  const def = (proj.procs || []).find((d) => (d.label || "") === label);
+  if (def) { spawnProc(id, def); return { ok: true, started: 1 }; }
+  const w = (proj.watchPorts || []).find((x) => (x.label || ("watch:" + x.port)) === label);
+  if (w && w.cmd) { spawnProc(id, { label: w.label || ("watch:" + w.port), cmd: w.cmd, args: w.args, cwd: w.cwd, env: w.env }); return { ok: true, started: 1 }; }
+  if (w) return { ok: false, reason: "external", startHint: w.startHint || null };
+  return { ok: false, reason: "no such proc" };
 }
 function stopProject(id) {
   const s = state.get(id);
@@ -237,7 +259,9 @@ const server = http.createServer(async (req, res) => {
           category: p.category, accent: p.accent, port: p.port,
           openPath: p.openPath, byline: p.byline, notes: p.notes,
           procs: projProcs(p),        // [{ label, port }] — launched procs
-          watchPorts: p.watchPorts || [], // [{ label, port }] — externally-managed deps
+          // watch ports: expose label/port + whether the gallery can launch it
+          // (has a cmd) and the hint to show otherwise.
+          watchPorts: (p.watchPorts || []).map((w) => ({ label: w.label || ("watch:" + w.port), port: w.port, launchable: !!w.cmd, startHint: w.startHint || null })),
         })),
       });
     }
@@ -257,6 +281,14 @@ const server = http.createServer(async (req, res) => {
       const id = decodeURIComponent(pathname.split("/").pop());
       const s = state.get(id);
       return send(res, 200, { id, logs: s ? s.logs : [] });
+    }
+    if (pathname.startsWith("/api/start-proc/") && method === "POST") {
+      // /api/start-proc/:id/:label — start one proc or a launchable watch port
+      const parts = pathname.split("/").slice(3).map(decodeURIComponent);
+      const id = parts[0];
+      const label = parts.slice(1).join("/");
+      if (!byId.has(id)) return send(res, 404, { error: "unknown project" });
+      return send(res, 200, startProc(id, label));
     }
     if (pathname.startsWith("/api/start/") && method === "POST") {
       const id = decodeURIComponent(pathname.split("/").pop());
