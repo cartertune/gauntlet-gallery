@@ -1,16 +1,34 @@
 # Gauntlet Gallery
 
-A one-page launcher for **everything you've built**. Point it at a folder of
-projects and it gives you a single editorial-looking page that can **start and
-stop them all at once** — each on its own dedicated port, so the whole fleet
-runs simultaneously without colliding. Every project gets a square, full-color
-cover plate that captures its essence, plus per-card Start/Stop, an Open link,
-live status, logs, and drag-to-reorder.
-
-Built for demo days: when a hiring partner walks up, open the gallery, hit
-**Start All**, and you can show anything in one click.
+A one-page launcher for **everything you've built**. Hit **Start All** and demo
+any project in one click — each runs on its own port, with its own cover art.
 
 ![gallery](docs/preview.png)
+
+## Quick start
+
+**1. Clone it.**
+
+```bash
+git clone git@github.com:cartertune/gauntlet-gallery.git
+```
+
+**2. Install the skill** (one command):
+
+```bash
+cp -r gauntlet-gallery/skill/gallery ~/.claude/skills/gallery
+```
+
+**3. In Claude Code, ask for a gallery** — point it at your projects folder:
+
+```
+/gallery make a gallery of everything in ~/projects
+```
+
+That's it. The skill finds your projects, gives each a port, and opens the
+gallery in your browser. Then just hit **Start All**.
+
+> No Claude Code? See [By hand](#b-by-hand-no-skill-needed) below.
 
 ---
 
@@ -18,15 +36,8 @@ Built for demo days: when a hiring partner walks up, open the gallery, hit
 
 ### A. With the `/gallery` skill (recommended)
 
-If you use Claude Code, the bundled skill builds and configures a gallery for
-you. Install the skill, then just ask:
-
-```
-/gallery
-```
-
-…or describe it: *"make a gallery of everything in my ~/projects folder."* The
-skill will:
+This is the [Quick start](#quick-start) above. Once installed, run `/gallery`
+(or describe what you want) and the skill will:
 
 1. Ask which directory / which projects to include.
 2. Inspect each project (Vite, Next, CRA, FastAPI, static, …) to find how to
@@ -35,15 +46,8 @@ skill will:
 4. Generate a bespoke, full-color cover plate for each app in the background and
    swap them in live.
 
-**Install the skill** (copy it where Claude Code looks for skills):
-
-```bash
-# user-level (available in every project)
-cp -r skill/gallery ~/.claude/skills/gallery
-
-# or project-level
-mkdir -p .claude/skills && cp -r skill/gallery .claude/skills/gallery
-```
+Prefer the skill scoped to one project instead of all of Claude Code? Install it
+project-level: `mkdir -p .claude/skills && cp -r gauntlet-gallery/skill/gallery .claude/skills/gallery`
 
 ### B. By hand (no skill needed)
 
