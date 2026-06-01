@@ -83,15 +83,50 @@ function isRunning(id) {
   const s = state.get(id);
   return !!(s && s.procs.length && s.procs.some((p) => p.child && !p.child.killed && p.child.exitCode === null));
 }
+
+// Derive the port a single proc binds, so we can show + poll each one.
+// Order of precedence: explicit def.port, then PORT env, then a --port/-p flag,
+// then a host:port or a bare numeric arg, then (for the primary web proc) the
+// project's port. Returns null if we genuinely can't tell.
+function procPort(def, proj) {
+  if (def.port) return Number(def.port);
+  if (def.env && def.env.PORT) return Number(def.env.PORT);
+  const args = (def.args || []).map(String);
+  for (let i = 0; i < args.length; i++) {
+    if ((args[i] === "--port" || args[i] === "-p" || args[i] === "-l") && args[i + 1]) {
+      const n = Number(args[i + 1]); if (n) return n;
+    }
+    const m = args[i].match(/(?:^|:)(\d{2,5})$/); // host:PORT or bare PORT
+    if (m) { const n = Number(m[1]); if (n >= 80) return n; }
+  }
+  // single-proc project with no explicit port → assume it's the web port
+  if ((proj.procs || []).length === 1) return proj.port;
+  return null;
+}
+function projProcs(proj) {
+  return (proj.procs || []).map((def, i) => ({
+    label: def.label || ("proc" + (i + 1)),
+    port: procPort(def, proj),
+  }));
+}
+
 async function statusFor(id) {
   const proj = byId.get(id);
   const s = state.get(id);
+  // per-proc liveness: poll each proc's port independently
+  const procs = projProcs(proj);
+  const procStatus = await Promise.all(procs.map(async (pp) => ({
+    label: pp.label,
+    port: pp.port,
+    listening: pp.port ? await isPortListening(pp.port) : null,
+  })));
   return {
     id,
     running: isRunning(id),
     listening: await isPortListening(proj.readyPort || proj.port),
     pids: s ? s.procs.map((p) => p.pid).filter(Boolean) : [],
     port: proj.port,
+    procs: procStatus, // [{ label, port, listening }]
   };
 }
 
@@ -198,6 +233,7 @@ const server = http.createServer(async (req, res) => {
           id: p.id, name: p.name, tagline: p.tagline, essence: p.essence,
           category: p.category, accent: p.accent, port: p.port,
           openPath: p.openPath, byline: p.byline, notes: p.notes,
+          procs: projProcs(p), // [{ label, port }] — so cards can show backend ports
         })),
       });
     }
