@@ -1,0 +1,7 @@
+# Per-gallery generated/local files — each person's gallery generates its own.
+gallery.config.json
+thumbnails.js
+order.json
+node_modules/
+
+# (gallery.config.example.json IS committed — it's the template.)

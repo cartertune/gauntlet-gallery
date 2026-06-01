@@ -1,0 +1,11 @@
+node_modules/
+.DS_Store
+
+# Per-gallery generated/local files inside any scaffolded copy.
+# (The template/ committed files are kept; only generated instances are ignored.)
+**/gallery.config.json
+**/thumbnails.js
+**/order.json
+
+# but DO keep the example config that ships with the template
+!template/gallery.config.example.json

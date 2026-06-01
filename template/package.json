@@ -1,0 +1,15 @@
+{
+  "name": "gauntlet-gallery",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A one-page launcher gallery for your projects — start/stop everything on dedicated ports, with per-app art and drag-to-reorder.",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "gallery": "node server.js",
+    "inspect": "node lib/inspect.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>GAUNTLET — Magazine</title>
+<style>
+  /* ============================================================
+     GAUNTLET — an editorial launcher in the FYRRE idiom.
+     Ink on paper. Hairline grid. Monster masthead. The only
+     color on the page lives inside the artwork plates.
+     ============================================================ */
+  :root {
+    --paper: #f4f3ef;
+    --paper-pure: #fbfbf9;
+    --ink: #0d0d0d;
+    --ink-2: #2c2c2c;
+    --ink-soft: #585855;
+    --ink-faint: #8a8a85;
+    --rule: #1a1a1a;
+    --hair: #d9d8d2;
+    --live: #0d0d0d;
+    --serif: "Georgia", "Times New Roman", serif;
+    --grotesk: "Helvetica Neue", "Arial Narrow", "Arial", system-ui, sans-serif;
+    --mono: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--paper);          /* full-bleed paper, no black mat */
+    color: var(--ink);
+    font-family: var(--grotesk);
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.4;
+  }
+  .page {
+    background: var(--paper);
+    max-width: 1320px;
+    margin: 0 auto;
+    min-height: 100vh;
+    padding: 0 0 0;
+  }
+
+  /* ---------- top bar / logo ---------- */
+  .topbar {
+    display: flex; align-items: center;
+    padding: 30px 40px 22px;
+    border-bottom: 1px solid var(--hair);
+  }
+  .logo { display: flex; align-items: center; gap: 16px; }
+  .logo .mark { width: 38px; height: 38px; display: block; flex: none; }
+  .logo .mark path { fill: var(--ink); }
+  .logo .name {
+    font-family: var(--grotesk);
+    font-weight: 700;
+    font-size: 30px;
+    letter-spacing: -0.018em;
+    line-height: 1;
+  }
+
+  /* ---------- control bar ---------- */
+  .controlbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 28px 40px 14px;
+    gap: 16px; flex-wrap: wrap;
+  }
+  .controlbar .label {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase;
+  }
+  .pills { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .pill {
+    font-size: 10px; letter-spacing: 0.13em; text-transform: uppercase;
+    border: 1px solid var(--rule); border-radius: 999px;
+    padding: 6px 14px; background: transparent; color: var(--ink);
+    cursor: pointer; transition: background .12s ease, color .12s ease;
+    font-family: var(--grotesk); font-weight: 600; white-space: nowrap;
+  }
+  .pill:hover { background: var(--ink); color: var(--paper); }
+  .pill.is-active { background: var(--ink); color: var(--paper); }
+  .pill.action { border-width: 1.5px; }
+  .pill.action.run::before { content: "▶ "; font-size: 8px; }
+  .pill.action.kill::before { content: "■ "; font-size: 8px; }
+  .upcount { font-family: var(--mono); font-size: 11px; color: var(--ink-soft); letter-spacing: 0.04em; }
+
+  .top-rule { height: 1px; background: var(--rule); margin: 0 40px; }
+
+  /* ---------- the grid ---------- */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    margin: 0 40px;
+    border-left: 1px solid var(--hair);
+    border-top: 1px solid var(--hair);
+  }
+  @media (max-width: 900px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
+
+  .entry {
+    border-right: 1px solid var(--hair);
+    border-bottom: 1px solid var(--hair);
+    padding: 22px 24px 20px;
+    display: flex; flex-direction: column;
+    position: relative;
+    background: var(--paper);
+    transition: background .15s ease, opacity .15s ease;
+  }
+  .entry:hover { background: var(--paper-pure); }
+  .entry.dragging { opacity: 0.35; }
+  .entry.drop-target { background: #ece9e0; box-shadow: inset 0 0 0 2px var(--ink); }
+  .entry.swapping { z-index: 5; position: relative; }   /* ride above neighbors mid-swap */
+  .entry.swapping .plate { box-shadow: 0 14px 36px -16px rgba(0,0,0,0.4); }
+
+  /* drag handle — appears on hover, top-left of each entry */
+  .drag-handle {
+    position: absolute; top: 14px; left: 14px; z-index: 3;
+    width: 22px; height: 22px; cursor: grab;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--ink-faint); opacity: 0; transition: opacity .14s ease;
+    background: var(--paper); border: 1px solid var(--hair);
+  }
+  .entry:hover .drag-handle { opacity: 1; }
+  .drag-handle:active { cursor: grabbing; }
+  .drag-handle svg { width: 11px; height: 11px; display: block; }
+
+  .entry-head {
+    display: flex; align-items: center; justify-content: flex-end;
+    margin-bottom: 16px;
+  }
+  .entry-cat {
+    font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase;
+    border: 1px solid var(--rule); border-radius: 999px; padding: 4px 11px;
+    color: var(--ink); white-space: nowrap;
+  }
+
+  /* the artwork plate — the only place color is allowed */
+  .plate {
+    aspect-ratio: 1 / 1;
+    border: 1px solid var(--ink);
+    overflow: hidden; position: relative;
+    background: #111;
+  }
+  .plate svg { width: 100%; height: 100%; display: block; }
+  /* plates are always full color — they show each app's own essence/palette.
+     running state is conveyed by the ink status mark + LIVE/OFFLINE label below. */
+  .plate .art { display: block; width: 100%; height: 100%; }
+
+  .plate .open-hit {
+    position: absolute; inset: 0; display: flex; align-items: flex-end; justify-content: flex-end;
+    padding: 10px; opacity: 0; transition: opacity .14s ease; text-decoration: none;
+  }
+  .entry.is-live .plate:hover .open-hit { opacity: 1; }
+  .open-hit .chip {
+    background: var(--paper); color: var(--ink); border: 1px solid var(--ink);
+    font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 700;
+    padding: 6px 12px;
+  }
+
+  .entry h2 {
+    font-family: var(--serif);
+    font-weight: 700; font-size: 21px; line-height: 1.12; letter-spacing: -0.01em;
+    margin: 18px 0 9px;
+  }
+  .entry .tagline {
+    font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-soft);
+    margin: -4px 0 10px;
+  }
+  .entry .body {
+    font-family: var(--serif);
+    font-size: 12.5px; line-height: 1.62; color: var(--ink-2);
+    margin: 0 0 14px;
+  }
+
+  /* metadata footer row: TEXT · author   PORT · 4001   etc. */
+  .meta-row {
+    display: flex; gap: 22px; flex-wrap: wrap;
+    font-size: 10px; letter-spacing: 0.04em; color: var(--ink-soft);
+    border-top: 1px solid var(--hair); padding-top: 12px; margin-top: auto;
+  }
+  .meta-row .k { font-weight: 700; letter-spacing: 0.13em; text-transform: uppercase; color: var(--ink); margin-right: 6px; }
+  .meta-row .v { font-family: var(--mono); }
+
+  /* status + controls, all ink */
+  .controls-row {
+    display: flex; align-items: center; gap: 16px; margin-top: 14px;
+  }
+  .status {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; font-weight: 700;
+  }
+  .status .mark {
+    width: 9px; height: 9px; border: 1.5px solid var(--ink); background: transparent;
+    transition: background .2s ease;
+  }
+  .status.live .mark { background: var(--ink); }
+  .status.starting .mark { background: repeating-linear-gradient(45deg, var(--ink) 0 2px, transparent 2px 4px); }
+  .status.live .txt::after { content: "LIVE"; }
+  .status.starting .txt::after { content: "BOOTING"; }
+  .status.down .txt::after { content: "OFFLINE"; color: var(--ink-faint); }
+  .status .txt { color: var(--ink); }
+  .status.down .txt { color: var(--ink-faint); }
+  .status .port { font-family: var(--mono); letter-spacing: 0.04em; color: var(--ink-soft); font-weight: 600; }
+
+  .controls-row .spacer { flex: 1; }
+  .txtbtn {
+    background: none; border: none; padding: 0; cursor: pointer;
+    font-family: var(--grotesk); font-size: 10px; font-weight: 700;
+    letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink);
+    border-bottom: 1.5px solid var(--ink); padding-bottom: 2px;
+    transition: opacity .12s ease;
+  }
+  .txtbtn:hover { opacity: 0.55; }
+  .txtbtn.ghost { border-bottom-color: var(--hair); color: var(--ink-soft); }
+  .openlink {
+    font-family: var(--grotesk); font-size: 10px; font-weight: 700;
+    letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink);
+    text-decoration: none; border-bottom: 1.5px solid var(--ink); padding-bottom: 2px;
+  }
+  .openlink:hover { opacity: 0.55; }
+  .openlink.disabled { color: var(--ink-faint); border-bottom-color: var(--hair); pointer-events: none; }
+
+  /* log drawer */
+  .logs {
+    grid-column: 1 / -1;
+    border-right: 1px solid var(--hair); border-bottom: 1px solid var(--hair);
+    background: #0d0d0d; color: #d8d8d2; font-family: var(--mono); font-size: 10.5px;
+    max-height: 0; overflow: hidden; transition: max-height .22s ease;
+  }
+  .logs.open { max-height: 230px; overflow-y: auto; }
+  .logs pre { margin: 0; padding: 16px 24px; white-space: pre-wrap; word-break: break-word; line-height: 1.6; }
+  .logs .err { color: #f1a7a7; }
+  .logs .hd { color: #8a8a85; }
+
+  /* footer */
+  .colophon {
+    text-align: center; padding: 40px 0 34px; color: var(--ink-soft);
+    font-size: 12px; letter-spacing: 0.1em;
+  }
+  .colophon b { color: var(--ink); font-weight: 700; }
+  .blackband { background: var(--ink); color: var(--paper); text-align: center; padding: 18px; font-family: var(--mono); font-size: 12px; letter-spacing: 0.18em; }
+
+  /* toast */
+  #toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(16px);
+    background: var(--ink); color: var(--paper); border: 1px solid var(--ink);
+    padding: 12px 20px; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600;
+    opacity: 0; pointer-events: none; transition: all .2s ease; z-index: 100;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+  <div class="page">
+    <div class="topbar">
+      <div class="logo">
+        <svg class="mark" viewBox="0 0 100 100" aria-hidden="true">
+          <!-- Gauntlet banner mark: rect with a downward V notched out of the bottom -->
+          <path d="M6 6 H94 V70 L50 94 L6 70 Z" />
+        </svg>
+        <span class="name" id="logo-name">Gauntlet Gallery</span>
+      </div>
+    </div>
+
+    <div class="controlbar">
+      <span class="label">Projects</span>
+      <div class="pills">
+        <span class="upcount" id="upcount">0 / 0 LIVE</span>
+        <button class="pill action run" id="start-all">Start All</button>
+        <button class="pill action kill" id="kill-all">Kill All</button>
+      </div>
+    </div>
+    <div class="top-rule"></div>
+
+    <div class="grid" id="grid"></div>
+
+    <div class="colophon">
+      Control server on <b>:4000</b> — each project runs on its own port, <b>4001–4008</b>, so the whole issue ships at once.
+    </div>
+    <div class="blackband">GAUNTLETAI / GALLERY</div>
+  </div>
+
+  <div id="toast"></div>
+
+  <!-- monogram.js / thumbnails.js declare top-level `const`s (monogramSVG, THUMBS).
+       In a classic <script> those are script-scoped; bridge them onto window. -->
+  <script src="/lib/monogram.js"></script>
+  <script>try { window.MONOGRAM = { monogramSVG: monogramSVG, initials: initials, mix: mix }; } catch (e) {}</script>
+  <script src="/thumbnails.js"></script>
+  <script>try { window.THUMBS = THUMBS; } catch (e) {}</script>
+  <script>
+  (function () {
+    const grid = document.getElementById("grid");
+    const toastEl = document.getElementById("toast");
+    const upcountEl = document.getElementById("upcount");
+    const local = {};
+    let PROJECTS = [];
+    let byId = {};
+
+    function toast(msg) {
+      toastEl.textContent = msg;
+      toastEl.classList.add("show");
+      clearTimeout(toast._t);
+      toast._t = setTimeout(() => toastEl.classList.remove("show"), 2600);
+    }
+    async function api(path, method = "POST", body) {
+      try {
+        const opts = { method };
+        if (body !== undefined) { opts.headers = { "Content-Type": "application/json" }; opts.body = JSON.stringify(body); }
+        const r = await fetch(path, opts);
+        return await r.json();
+      } catch (e) { toast("Control server unreachable — run node server.js"); return null; }
+    }
+    function escapeHtml(s){return s.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));}
+
+    // Plate art: prefer the generated essence plate; fall back to a live monogram
+    // (so a project always has a tile even before its essence art is generated).
+    function plateSVG(p) {
+      if (typeof THUMBS !== "undefined" && THUMBS[p.id]) {
+        try { return THUMBS[p.id](); } catch (_) {}
+      }
+      if (window.MONOGRAM) return window.MONOGRAM.monogramSVG(p.id, p.name, p.accent || "#6366f1");
+      return "";
+    }
+
+    function entryHTML(p) {
+      const svg = plateSVG(p);
+      return `
+      <article class="entry" id="card-${p.id}" data-id="${p.id}" draggable="true">
+        <div class="drag-handle" title="Drag to reorder" aria-label="Drag to reorder">
+          <svg viewBox="0 0 10 10" fill="currentColor"><circle cx="2" cy="2" r="1"/><circle cx="8" cy="2" r="1"/><circle cx="2" cy="5" r="1"/><circle cx="8" cy="5" r="1"/><circle cx="2" cy="8" r="1"/><circle cx="8" cy="8" r="1"/></svg>
+        </div>
+        <div class="entry-head">
+          <span class="entry-cat">${escapeHtml(p.category || "PROJECT")}</span>
+        </div>
+        <div class="plate">
+          <div class="art">${svg}</div>
+          <a class="open-hit" id="overlay-${p.id}" target="_blank" rel="noopener"><span class="chip">Open ↗</span></a>
+        </div>
+        <h2>${escapeHtml(p.name || p.id)}</h2>
+        ${p.tagline ? `<div class="tagline">${escapeHtml(p.tagline)}</div>` : ""}
+        ${p.essence ? `<p class="body">${escapeHtml(p.essence)}</p>` : ""}
+        <div class="meta-row">
+          <span><span class="k">Project</span><span class="v">${escapeHtml(p.byline || p.name || p.id)}</span></span>
+          <span><span class="k">Port</span><span class="v">:${p.port}</span></span>
+        </div>
+        <div class="controls-row">
+          <span class="status down" id="status-${p.id}"><span class="mark"></span><span class="txt"></span><span class="port" id="port-${p.id}"></span></span>
+          <span class="spacer"></span>
+          <button class="txtbtn ghost" id="logbtn-${p.id}" data-id="${p.id}">Logs</button>
+          <button class="txtbtn" id="toggle-${p.id}" data-id="${p.id}">Start</button>
+          <a class="openlink disabled" id="link-${p.id}" target="_blank" rel="noopener">Open ↗</a>
+        </div>
+        <div class="logs" id="log-${p.id}"><pre class="hd">No logs yet — start the project.</pre></div>
+      </article>`;
+    }
+
+    // Render entries in the saved display order (falls back to registry order).
+    function orderedProjects(order) {
+      const known = (order || []).filter((id) => byId[id]);
+      const missing = PROJECTS.map((p) => p.id).filter((id) => !known.includes(id));
+      return [...known, ...missing].map((id) => byId[id]);
+    }
+
+    async function render(order) {
+      const list = orderedProjects(order);
+      grid.innerHTML = list.map(entryHTML).join("");
+      wireEntries();
+      wireDragAndDrop();
+      refresh();
+    }
+
+    function wireEntries() {
+    for (const p of PROJECTS) {
+      const url = "http://localhost:" + p.port + (p.openPath || "/");
+      document.getElementById("overlay-" + p.id).href = url;
+      document.getElementById("link-" + p.id).href = url;
+
+      document.getElementById("toggle-" + p.id).addEventListener("click", async () => {
+        const isUp = (local[p.id] && local[p.id].starting) ||
+          document.getElementById("status-" + p.id).classList.contains("live");
+        if (isUp) { await api("/api/stop/" + p.id); local[p.id] = { starting: false }; toast(p.name + " — stopping"); }
+        else { local[p.id] = { starting: true }; await api("/api/start/" + p.id); toast(p.name + " — starting on :" + p.port); }
+        refresh();
+      });
+      document.getElementById("logbtn-" + p.id).addEventListener("click", () => {
+        const d = document.getElementById("log-" + p.id);
+        d.classList.toggle("open");
+        if (d.classList.contains("open")) loadLogs(p.id);
+      });
+    }
+    } // end wireEntries
+
+    // ---------- drag-to-reorder: SWAP mechanic, FLIP-animated, persisted -------
+    let dragId = null;
+    function currentOrder() {
+      return Array.from(grid.querySelectorAll(".entry")).map((el) => el.dataset.id);
+    }
+    async function saveOrder() {
+      await api("/api/order", "POST", { order: currentOrder() });
+      toast("Order saved");
+    }
+
+    // Swap two entries in the DOM and animate every moved card from its old
+    // box to its new one (FLIP): measure -> mutate -> invert -> play.
+    function swapEntries(aEl, bEl) {
+      const cards = Array.from(grid.querySelectorAll(".entry"));
+      const first = new Map();
+      cards.forEach((c) => first.set(c, c.getBoundingClientRect()));
+
+      // SWAP: exchange the two nodes' positions using placeholders.
+      const aNext = aEl.nextSibling === bEl ? aEl : aEl.nextSibling;
+      const marker = document.createComment("");
+      grid.insertBefore(marker, aEl);
+      grid.insertBefore(aEl, bEl);      // move A to where B is
+      grid.insertBefore(bEl, marker);   // move B to where A was
+      grid.removeChild(marker);
+
+      // INVERT + PLAY: for each card whose box changed, animate from old->new.
+      grid.querySelectorAll(".entry").forEach((c) => {
+        const prev = first.get(c);
+        if (!prev) return;
+        const now = c.getBoundingClientRect();
+        const dx = prev.left - now.left;
+        const dy = prev.top - now.top;
+        if (!dx && !dy) return;
+        c.style.transition = "none";
+        c.style.transform = `translate(${dx}px, ${dy}px)`;
+        // next frame: release to the real position with a transition
+        requestAnimationFrame(() => {
+          c.style.transition = "transform .34s cubic-bezier(.22,.61,.36,1)";
+          c.style.transform = "";
+          c.classList.add("swapping");
+          const done = () => { c.style.transition = ""; c.classList.remove("swapping"); c.removeEventListener("transitionend", done); };
+          c.addEventListener("transitionend", done);
+        });
+      });
+    }
+
+    function wireDragAndDrop() {
+      grid.querySelectorAll(".entry").forEach((el) => {
+        el.addEventListener("dragstart", (e) => {
+          dragId = el.dataset.id;
+          el.classList.add("dragging");
+          e.dataTransfer.effectAllowed = "move";
+          try { e.dataTransfer.setData("text/plain", dragId); } catch (_) {}
+        });
+        el.addEventListener("dragend", () => {
+          el.classList.remove("dragging");
+          grid.querySelectorAll(".drop-target").forEach((t) => t.classList.remove("drop-target"));
+          dragId = null;
+        });
+        el.addEventListener("dragover", (e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; });
+        el.addEventListener("dragenter", () => { if (el.dataset.id !== dragId) el.classList.add("drop-target"); });
+        el.addEventListener("dragleave", () => el.classList.remove("drop-target"));
+        el.addEventListener("drop", (e) => {
+          e.preventDefault();
+          el.classList.remove("drop-target");
+          if (!dragId || el.dataset.id === dragId) return;
+          const dragEl = grid.querySelector('.entry[data-id="' + dragId + '"]');
+          if (!dragEl) return;
+          swapEntries(dragEl, el);  // SWAP the two, not insert-shift
+          saveOrder();
+        });
+      });
+    }
+
+    async function loadLogs(id) {
+      const r = await api("/api/logs/" + id, "GET");
+      const d = document.getElementById("log-" + id);
+      if (!r || !r.logs || !r.logs.length) { d.innerHTML = '<pre class="hd">No logs yet.</pre>'; return; }
+      d.innerHTML = "<pre>" + r.logs.map(l => {
+        const cls = /error|ERROR|fail|Traceback/i.test(l) ? "err" : (/^────/.test(l) ? "hd" : "");
+        return `<span class="${cls}">${escapeHtml(l)}</span>`;
+      }).join("\n") + "</pre>";
+      d.scrollTop = d.scrollHeight;
+    }
+
+    document.getElementById("start-all").addEventListener("click", async (e) => {
+      e.currentTarget.disabled = true;
+      for (const p of PROJECTS) local[p.id] = { starting: true };
+      refresh(); toast("Starting all 8 — first boot can take 10–20s each");
+      await api("/api/start-all"); e.currentTarget.disabled = false; refresh();
+    });
+    document.getElementById("kill-all").addEventListener("click", async (e) => {
+      e.currentTarget.disabled = true;
+      await api("/api/kill-all");
+      for (const p of PROJECTS) local[p.id] = { starting: false };
+      toast("Killed all projects"); e.currentTarget.disabled = false; refresh();
+    });
+
+    function applyStatus(id, st) {
+      const status = document.getElementById("status-" + id);
+      const port = document.getElementById("port-" + id);
+      const card = document.getElementById("card-" + id);
+      const toggle = document.getElementById("toggle-" + id);
+      const link = document.getElementById("link-" + id);
+      if (!status || !card || !toggle || !link) return; // not rendered yet
+
+      const listening = st && st.listening;
+      const running = st && st.running;
+      const starting = local[id] && local[id].starting && !listening;
+
+      card.classList.toggle("is-live", !!listening);
+      status.className = "status " + (listening ? "live" : (starting || running ? "starting" : "down"));
+      port.textContent = listening ? "  :" + st.port : "";
+
+      if (listening) {
+        toggle.textContent = "Stop"; toggle.classList.remove("ghost");
+        link.classList.remove("disabled");
+        if (local[id]) local[id].starting = false;
+      } else if (starting || running) {
+        toggle.textContent = "Stop"; toggle.classList.remove("ghost");
+        link.classList.add("disabled");
+      } else {
+        toggle.textContent = "Start"; toggle.classList.add("ghost");
+        link.classList.add("disabled");
+      }
+    }
+
+    async function refresh() {
+      const st = await api("/api/status", "GET");
+      if (!st) return;
+      let up = 0;
+      for (const p of PROJECTS) {
+        applyStatus(p.id, st[p.id]);
+        if (st[p.id] && st[p.id].listening) up++;
+        const d = document.getElementById("log-" + p.id);
+        if (d.classList.contains("open")) loadLogs(p.id);
+      }
+      upcountEl.textContent = up + " / " + PROJECTS.length + " LIVE";
+    }
+
+    // ---------- bootstrap: load title + projects + order, render, then poll ----------
+    (async function boot() {
+      const meta = await api("/api/meta", "GET");
+      if (meta && meta.title) {
+        document.getElementById("logo-name").textContent = meta.title;
+        document.title = meta.title;
+      }
+      const pr = await api("/api/projects", "GET");
+      PROJECTS = (pr && pr.projects) || [];
+      byId = Object.fromEntries(PROJECTS.map((p) => [p.id, p]));
+
+      if (!PROJECTS.length) {
+        grid.innerHTML = '<div style="grid-column:1/-1;padding:60px 24px;text-align:center;color:var(--ink-soft);font-family:var(--serif)">No projects configured yet.<br>Run the <code>/gallery</code> skill, or edit <code>gallery.config.json</code>.</div>';
+        return;
+      }
+      const r = await api("/api/order", "GET");
+      await render(r && r.order ? r.order : null);
+      setInterval(refresh, 2500);
+
+      // Periodically hot-reload essence art: the /gallery skill writes new plates
+      // into thumbnails.js in the background. Re-fetch and swap them in when they
+      // differ from what's showing (without disturbing drag order or live state).
+      pollForEssenceArt();
+    })();
+
+    // Re-fetch thumbnails.js every few seconds; if a project's plate changed
+    // (e.g. monogram -> essence), swap just that plate's innerHTML in place.
+    let lastThumbSrc = "";
+    async function pollForEssenceArt() {
+      setInterval(async () => {
+        try {
+          const src = await (await fetch("/thumbnails.js", { cache: "no-store" })).text();
+          if (src === lastThumbSrc) return;
+          lastThumbSrc = src;
+          // evaluate the fresh module into a local THUMBS and swap changed plates
+          const fresh = (new Function(src + "; return (typeof THUMBS!=='undefined') ? THUMBS : {};"))();
+          if (!fresh || typeof fresh !== "object") return;
+          window.THUMBS = fresh;
+          for (const p of PROJECTS) {
+            const art = document.querySelector('#card-' + CSS.escape(p.id) + ' .art');
+            if (art && fresh[p.id]) {
+              const next = fresh[p.id]();
+              if (next && next !== art.innerHTML) art.innerHTML = next;
+            }
+          }
+        } catch (_) {}
+      }, 4000);
+    }
+  })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,67 @@
+{
+  "title": "Gauntlet Gallery",
+  "controlPort": 4000,
+  "projects": [
+    {
+      "id": "my-vite-app",
+      "name": "My Vite App",
+      "tagline": "what it does in a few words",
+      "essence": "A 2-4 sentence description of what this app actually does — shown as the card body. The /gallery skill fills this in from the project's README/code.",
+      "category": "WEB",
+      "accent": "#6366f1",
+      "port": 4001,
+      "readyPort": 4001,
+      "openPath": "/",
+      "notes": "Any launch caveat to surface on the card.",
+      "procs": [
+        {
+          "label": "web",
+          "cmd": "npm",
+          "args": ["run", "dev", "--", "--port", "4001", "--strictPort"],
+          "cwd": "/absolute/path/to/my-vite-app"
+        }
+      ]
+    },
+    {
+      "id": "my-next-app",
+      "name": "My Next App",
+      "tagline": "a next.js project",
+      "essence": "Next.js dev server. Its dev script may hardcode a port; the trailing -p flag overrides it.",
+      "category": "WEB",
+      "accent": "#22d3ee",
+      "port": 4002,
+      "procs": [
+        {
+          "label": "web",
+          "cmd": "npm",
+          "args": ["run", "dev", "--", "-p", "4002"],
+          "cwd": "/absolute/path/to/my-next-app"
+        }
+      ]
+    },
+    {
+      "id": "my-api-app",
+      "name": "App With A Backend",
+      "tagline": "spa + api",
+      "essence": "A project that needs more than one process: e.g. a FastAPI backend plus a Vite frontend. List both in procs; readyPort is the one you open in the browser.",
+      "category": "EVAL",
+      "accent": "#3b82f6",
+      "port": 4003,
+      "readyPort": 4003,
+      "procs": [
+        {
+          "label": "api",
+          "cmd": "/absolute/path/to/.venv/bin/python",
+          "args": ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8003"],
+          "cwd": "/absolute/path/to/my-api-app"
+        },
+        {
+          "label": "web",
+          "cmd": "npm",
+          "args": ["run", "dev", "--", "--port", "4003", "--strictPort"],
+          "cwd": "/absolute/path/to/my-api-app/frontend"
+        }
+      ]
+    }
+  ]
+}
