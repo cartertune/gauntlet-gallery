@@ -19,6 +19,50 @@ function readJSON(p) {
 }
 function exists(p) { try { fs.accessSync(p); return true; } catch (_) { return false; } }
 function lc(s) { return String(s || "").toLowerCase(); }
+function readText(p) { try { return fs.readFileSync(p, "utf8"); } catch (_) { return ""; } }
+
+// Scan a project's likely config/env files for HARDCODED origins/ports that
+// would break if we reassigned the port: CORS allowlists, dev-proxy targets,
+// OAuth redirect URIs, explicit server.port. Returns { pinnedPorts:Set, hits:[] }.
+//
+// This is the heart of the CORS-safety rule: if a project pins :5180 anywhere,
+// the gallery should KEEP it on :5180 rather than renumber it to :4001.
+function scanPinnedOrigins(absDir) {
+  const candidates = [
+    "vite.config.ts", "vite.config.js", "vite.config.mjs",
+    "next.config.js", "next.config.mjs", "next.config.ts",
+    ".env", ".env.local", ".env.development", ".env.development.local",
+    "src/main/resources/application.yml", "src/main/resources/application.yaml",
+    "src/main/resources/application.properties",
+    "config/cors.rb", "config/initializers/cors.rb",
+    "backend/src/main/resources/application.yml",
+    "app/main.py", "main.py", "server.js", "src/server.ts",
+  ];
+  const portRe = /(?:localhost|127\.0\.0\.1)[:\/](\d{2,5})/g;       // localhost:PORT
+  const allowOriginRe = /(allow[_-]?origins?|cors|server\.port|proxy|redirect[_-]?uri)/i;
+  const pinned = new Set();
+  const hits = [];
+  for (const rel of candidates) {
+    const full = path.join(absDir, rel);
+    if (!exists(full)) continue;
+    const text = readText(full);
+    if (!text) continue;
+    const relevant = allowOriginRe.test(text);
+    let m;
+    portRe.lastIndex = 0;
+    while ((m = portRe.exec(text))) {
+      const port = Number(m[1]);
+      if (port >= 80 && port <= 65535) { pinned.add(port); }
+    }
+    // also catch a bare `server.port: NNNN` / `--port NNNN` / `port: NNNN`
+    const bare = text.match(/(?:server\.port|["']?port["']?\s*[:=]|--port\s+)\s*(\d{3,5})/i);
+    if (bare) pinned.add(Number(bare[1]));
+    if (relevant || (m && portRe.lastIndex)) {
+      hits.push({ file: rel, mentionsOriginConfig: relevant });
+    }
+  }
+  return { pinnedPorts: [...pinned].sort((a, b) => a - b), hits };
+}
 
 // Returns { type, defaultPort, makeProcs(absDir, port) } or null.
 function inspectProject(absDir) {
@@ -150,15 +194,30 @@ if (require.main === module) {
   const dir = path.resolve(process.argv[2] || ".");
   const port = Number(process.argv[3] || 0);
   const r = inspectProject(dir);
-  if (!r) { console.log(JSON.stringify({ dir, detected: false }, null, 2)); process.exit(0); }
-  const usePort = port || r.defaultPort;
+  const scan = scanPinnedOrigins(dir);
+  if (!r) {
+    console.log(JSON.stringify({ dir, detected: false, pinnedPorts: scan.pinnedPorts, originHits: scan.hits }, null, 2));
+    process.exit(0);
+  }
+  // CORS-safe recommendation: PREFER the project's native/pinned port so its
+  // CORS allowlist / dev-proxy / OAuth redirect keeps working. Only override
+  // when the caller forces a specific port (collision resolution).
+  const nativePort = scan.pinnedPorts.includes(r.defaultPort) ? r.defaultPort
+    : (scan.pinnedPorts.find((p) => p > 1024) || r.defaultPort);
+  const usePort = port || nativePort;
+  const corsRisk = scan.pinnedPorts.length > 0 && port && port !== nativePort;
   console.log(JSON.stringify({
     dir, detected: true, type: r.type, framework: r.framework,
-    defaultPort: r.defaultPort, note: r.note,
+    defaultPort: r.defaultPort,
+    nativePort,                       // <- the port to KEEP unless it collides
+    pinnedPorts: scan.pinnedPorts,    // <- ports hardcoded in CORS/proxy/env/config
+    originHits: scan.hits,            // <- files that pin an origin/port
+    corsRisk,                         // <- true if forcing `port` would break a pinned origin
+    note: r.note,
     procs: r.makeProcs(dir, usePort),
   }, null, 2));
 }
 
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { inspectProject };
+  module.exports = { inspectProject, scanPinnedOrigins };
 }

@@ -60,34 +60,59 @@ node <gallery-dir-or-template>/lib/inspect.js <absolute-project-dir>
 ```
 
 It detects Vite, Next.js, CRA, Vue-CLI, Astro, SvelteKit, generic npm
-dev/start, Python (FastAPI/uvicorn, Flask, Django), and static sites, and
-returns a proposed `procs` array. Treat it as a **starting guess** — then
-verify against reality:
-- Read the project's `package.json` `scripts` (esp. `dev`/`start`) and any
-  `vite.config.*` / `next.config.*` for a hardcoded port or a dev proxy.
-- Read the README and skim the entry file so you can write a good `essence`
-  (2–4 sentences describing what the app actually does) and pick a fitting
-  `category` (one short word: WEB, GAME, AGENT, EVAL, etc.) and `accent` color.
-- Watch for **multi-process** apps (a web UI + a backend/api, a monorepo with
-  `apps/*`): list every process in `procs`, and set `readyPort` to the one you
-  open in the browser. If a frontend dev-proxy hardcodes a backend port, run
-  the backend on exactly that port (don't edit the user's config).
-- Watch for **data deps** (a Postgres/Docker container, a `.env` with keys):
-  note them in `notes` so the card warns the user; don't try to provision them.
+dev/start, Python (FastAPI/uvicorn, Flask, Django), and static sites. It returns
+a proposed `procs` array PLUS the fields that keep you from breaking CORS:
+- `defaultPort` — the framework's default.
+- `nativePort` — the port to **keep** (a pinned port if found, else the default).
+- `pinnedPorts` — ports hardcoded somewhere that other things depend on (a CORS
+  allowlist, a dev-proxy target, a `server.port`, an OAuth redirect, a `.env`).
+- `originHits` — which files pin an origin/port.
+
+Treat the procs as a **starting guess** and verify against reality:
+- Read `package.json` `scripts` and any `vite.config.*` / `next.config.*` for a
+  hardcoded port or a dev proxy.
+- Read the README / entry file to write a good `essence` (2–4 sentences on what
+  the app does), pick a `category` (one short word: WEB, GAME, AGENT, EVAL…) and
+  an `accent` color.
+- **Multi-process apps** (web + api, a monorepo `apps/*`): list every process in
+  `procs`; set `readyPort` to the one you open in the browser. If a frontend
+  dev-proxy hardcodes a backend port, run the backend on **exactly** that port.
+- **Data deps** (Postgres/Docker, a `.env` with keys): note them in `notes`;
+  don't try to provision them.
 
 **Never edit the user's project files.** Express every port override as a CLI
-flag or env var in `procs` (e.g. Vite `--port N --strictPort`; Next `-p N`; CRA
-/ Express `PORT=N`; uvicorn `--port N`).
+flag or env var in `procs` (Vite `--port N --strictPort`; Next `-p N`; CRA /
+Express `PORT=N`; uvicorn `--port N`).
 
-### 3. Assign non-conflicting ports
+### 3. Assign ports — CORS-safe: keep native, only renumber on collision
 
-- Control server: **4000** (or the user's chosen control port).
-- Each project's **web port**: 4001, 4002, 4003, … in order.
-- Backends/data services a project needs (FastAPI, a second server): give them
-  their own ports outside the 40xx web range (e.g. 8001+, or the exact port a
-  hardcoded proxy expects). Make sure nothing collides with anything else.
-- Rewrite each project's `procs` to use its assigned port (substitute the port
-  into the flag/env you identified in step 2).
+Reassigning a frontend's port silently breaks any app whose **CORS allowlist,
+dev-proxy target, or OAuth redirect** is hardcoded to the old origin — the
+classic "every API call blocked, 'Could not load…' on every screen" failure. So:
+
+- **Default each project to its `nativePort`** (the port it already expects). If
+  `pinnedPorts` is non-empty, those origins matter — keep the web port on the one
+  that's in the allowlist/proxy so it keeps working out of the box.
+- **Only reassign a port when two projects would actually collide** on the same
+  number. When you must move one, prefer moving the one with **no** pinned
+  origins; if you move a pinned one, add a clear `notes` warning that its CORS
+  allowlist / proxy / redirect must include the new origin, and tell the user.
+- Control server: **4000** (or the user's chosen control port). Don't let any
+  project's port equal the control port.
+- For projects with no constraints, sequential web ports (4001, 4002, …) are fine.
+- Backends/data services keep their own ports (the exact one a proxy/CORS list
+  expects, e.g. `:8088`, `:8080`); make sure nothing collides with anything else.
+- Rewrite each project's `procs` to use its assigned port.
+
+**Dual host forms (localhost + 127.0.0.1).** Browsers treat `http://localhost:N`
+and `http://127.0.0.1:N` as **different origins**. Vite often surfaces the
+`127.0.0.1` form while a backend's CORS list only allows `localhost` (or vice
+versa) — that mismatch blocks every call even when the port is right. So:
+- The gallery's Open links and liveness use a **consistent host** (localhost).
+- When a project has a backend with a CORS allowlist you can see, note in its
+  card `notes` that the allowlist should include **both** `http://localhost:PORT`
+  **and** `http://127.0.0.1:PORT` for its frontend port — so it works regardless
+  of which form the tab lands on. Don't edit it for them; surface it.
 
 ### 4. Scaffold + write the config
 

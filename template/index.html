@@ -147,8 +147,10 @@
   .plate .open-hit {
     position: absolute; inset: 0; display: flex; align-items: flex-end; justify-content: flex-end;
     padding: 10px; opacity: 0; transition: opacity .14s ease; text-decoration: none;
+    pointer-events: none;                 /* inert unless the project is live */
   }
-  .entry.is-live .plate:hover .open-hit { opacity: 1; }
+  .entry.is-live .plate .open-hit.live { pointer-events: auto; }
+  .entry.is-live .plate:hover .open-hit.live { opacity: 1; }
   .open-hit .chip {
     background: var(--paper); color: var(--ink); border: 1px solid var(--ink);
     font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 700;
@@ -371,8 +373,12 @@
     function wireEntries() {
     for (const p of PROJECTS) {
       const url = "http://localhost:" + p.port + (p.openPath || "/");
-      document.getElementById("overlay-" + p.id).href = url;
-      document.getElementById("link-" + p.id).href = url;
+      // stash the URL but DON'T set href yet — Open stays inert until the
+      // project is live (applyStatus -> setOpenable wires the href in).
+      const link = document.getElementById("link-" + p.id);
+      const overlay = document.getElementById("overlay-" + p.id);
+      link.dataset.url = url;
+      overlay.dataset.url = url;
 
       document.getElementById("toggle-" + p.id).addEventListener("click", async () => {
         const isUp = (local[p.id] && local[p.id].starting) ||
@@ -493,6 +499,7 @@
       const card = document.getElementById("card-" + id);
       const toggle = document.getElementById("toggle-" + id);
       const link = document.getElementById("link-" + id);
+      const overlay = document.getElementById("overlay-" + id);
       if (!status || !card || !toggle || !link) return; // not rendered yet
 
       const listening = st && st.listening;
@@ -503,16 +510,35 @@
       status.className = "status " + (listening ? "live" : (starting || running ? "starting" : "down"));
       port.textContent = listening ? "  :" + st.port : "";
 
+      // "Open" is only usable when the project is actually listening. We gate it
+      // three ways so there's no clickable Open on a stopped/booting project:
+      // the .disabled class (pointer-events:none + dim), and we also strip the
+      // href + add the .live gate on the plate overlay.
+      setOpenable(link, overlay, listening);
+
       if (listening) {
         toggle.textContent = "Stop"; toggle.classList.remove("ghost");
-        link.classList.remove("disabled");
         if (local[id]) local[id].starting = false;
       } else if (starting || running) {
         toggle.textContent = "Stop"; toggle.classList.remove("ghost");
-        link.classList.add("disabled");
       } else {
         toggle.textContent = "Start"; toggle.classList.add("ghost");
-        link.classList.add("disabled");
+      }
+    }
+
+    // Enable/disable the two "Open" affordances for a project.
+    function setOpenable(link, overlay, live) {
+      const url = link && link.dataset.url;
+      if (link) {
+        link.classList.toggle("disabled", !live);
+        link.setAttribute("aria-disabled", String(!live));
+        if (live && url) link.setAttribute("href", url);
+        else link.removeAttribute("href"); // an <a> with no href is not a link
+      }
+      if (overlay) {
+        overlay.classList.toggle("live", !!live);
+        if (live && url) overlay.setAttribute("href", url);
+        else overlay.removeAttribute("href");
       }
     }
 

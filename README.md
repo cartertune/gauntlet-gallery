@@ -13,22 +13,39 @@ any project in one click — each runs on its own port, with its own cover art.
 git clone git@github.com:cartertune/gauntlet-gallery.git
 ```
 
-**2. Install the skill** (one command):
+**2. Install the skill** (one command) —
+
+<details open>
+<summary><b>Claude Code</b></summary>
 
 ```bash
 cp -r gauntlet-gallery/skill/gallery ~/.claude/skills/gallery
 ```
+</details>
 
-**3. In Claude Code, ask for a gallery** — point it at your projects folder:
+<details>
+<summary><b>Codex</b></summary>
+
+```bash
+mkdir -p ~/.codex/prompts
+cp gauntlet-gallery/skill/gallery/SKILL.md ~/.codex/prompts/gallery.md
+cp gauntlet-gallery/skill/gallery/plate-prompt.md ~/.codex/prompts/gallery-plate.md
+```
+</details>
+
+**3. Ask your agent for a gallery** — point it at your projects folder:
 
 ```
 /gallery make a gallery of everything in ~/projects
 ```
 
+(In Codex, run `/gallery`; if it doesn't pick up the prompt, just say
+*"follow gallery.md to make a gallery of everything in ~/projects".*)
+
 That's it. The skill finds your projects, gives each a port, and opens the
 gallery in your browser. Then just hit **Start All**.
 
-> No Claude Code? See [By hand](#b-by-hand-no-skill-needed) below.
+> No agent at all? See [By hand](#b-by-hand-no-skill-needed) below.
 
 ---
 
