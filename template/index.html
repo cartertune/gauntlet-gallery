@@ -198,6 +198,8 @@
   .pchip.up { border-color: var(--ink); color: var(--ink); }
   .pchip.up .pdot { background: var(--ink); border-color: var(--ink); }
   .pchip.starting .pdot { background: repeating-linear-gradient(45deg, var(--ink-soft) 0 1.5px, transparent 1.5px 3px); border-color: var(--ink-soft); }
+  /* watch-only: an external dependency the gallery polls but doesn't launch */
+  .pchip.watch { border-style: dashed; }
 
   /* status + controls, all ink */
   .controls-row {
@@ -341,13 +343,15 @@
       return "";
     }
 
-    // One chip per process the project launches: label :port + a live/offline dot.
-    // Shows the backend(s) alongside the web app. Dots are updated each poll.
+    // One chip per process the project launches (label :port + a live/offline
+    // dot), PLUS any watch-only ports (externally-managed deps the gallery polls
+    // but doesn't launch — e.g. a backend/DB you start yourself, shown dashed).
     function portChips(p) {
-      const procs = (p.procs && p.procs.length) ? p.procs : [{ label: "web", port: p.port }];
-      return procs.map((pp) => {
+      const launched = (p.procs && p.procs.length) ? p.procs.map((pp) => ({ ...pp, watch: false })) : [{ label: "web", port: p.port, watch: false }];
+      const watched = (p.watchPorts || []).map((w) => ({ label: w.label || ("watch:" + w.port), port: w.port, watch: true }));
+      return [...launched, ...watched].map((pp) => {
         if (pp.port == null) return "";
-        return `<span class="pchip" id="pchip-${p.id}-${pp.port}" data-port="${pp.port}">`
+        return `<span class="pchip${pp.watch ? " watch" : ""}" id="pchip-${p.id}-${pp.port}" data-port="${pp.port}"${pp.watch ? ' title="external — start this yourself; the gallery only watches it"' : ""}>`
           + `<span class="pdot"></span>${escapeHtml(pp.label)} <span class="pport">:${pp.port}</span></span>`;
       }).join("");
     }

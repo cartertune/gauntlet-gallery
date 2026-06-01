@@ -77,8 +77,15 @@ Treat the procs as a **starting guess** and verify against reality:
 - **Multi-process apps** (web + api, a monorepo `apps/*`): list every process in
   `procs`; set `readyPort` to the one you open in the browser. If a frontend
   dev-proxy hardcodes a backend port, run the backend on **exactly** that port.
-- **Data deps** (Postgres/Docker, a `.env` with keys): note them in `notes`;
-  don't try to provision them.
+- **Heavy / externally-managed backends** (a Spring/Java service needing a
+  specific JDK + Postgres + Auth0, or any dependency the user runs themselves):
+  do **not** auto-launch it — that's fragile. Instead list it under
+  `watchPorts` (e.g. `"watchPorts": [{ "label": "api", "port": 8080 }]`). The
+  gallery polls those ports and shows a dashed status chip (up/down) without
+  spawning them, and you note in `notes` how the user should start it.
+- **Data deps** (Postgres/Docker, a `.env` with keys): add to `watchPorts` if
+  there's a port worth showing (e.g. Postgres `:5432`), and note them; don't
+  try to provision them.
 
 **Never edit the user's project files.** Express every port override as a CLI
 flag or env var in `procs` (Vite `--port N --strictPort`; Next `-p N`; CRA /

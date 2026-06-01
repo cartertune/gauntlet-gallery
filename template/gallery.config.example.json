@@ -62,6 +62,28 @@
           "cwd": "/absolute/path/to/my-api-app/frontend"
         }
       ]
+    },
+    {
+      "id": "heavy-backend-app",
+      "name": "App With An External Backend",
+      "tagline": "frontend here, backend you run yourself",
+      "essence": "When a backend is too heavy to auto-launch (specific JDK + Postgres + Auth0, etc.), run only the frontend and WATCH the backend's port. The card shows a dashed 'api :8080' chip that goes green when you've started it. Pick the frontend port from the backend's CORS allowlist so calls aren't blocked.",
+      "category": "WEB",
+      "accent": "#6366f1",
+      "port": 5180,
+      "readyPort": 5180,
+      "notes": "Frontend on 5180 because the backend's CORS allowlist only permits 5173/5180/4173 (both localhost and 127.0.0.1). Start the backend yourself; the api:8080 chip shows when it's up.",
+      "procs": [
+        {
+          "label": "web",
+          "cmd": "npm",
+          "args": ["run", "dev", "--", "--port", "5180", "--strictPort"],
+          "cwd": "/absolute/path/to/heavy-backend-app/frontend"
+        }
+      ],
+      "watchPorts": [
+        { "label": "api", "port": 8080 }
+      ]
     }
   ]
 }

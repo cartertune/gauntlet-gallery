@@ -113,12 +113,15 @@ function projProcs(proj) {
 async function statusFor(id) {
   const proj = byId.get(id);
   const s = state.get(id);
-  // per-proc liveness: poll each proc's port independently
-  const procs = projProcs(proj);
-  const procStatus = await Promise.all(procs.map(async (pp) => ({
-    label: pp.label,
-    port: pp.port,
+  // launched procs (gallery spawns these) + watch-only ports (externally
+  // managed deps we only poll — e.g. a backend/DB you start yourself).
+  const launched = await Promise.all(projProcs(proj).map(async (pp) => ({
+    label: pp.label, port: pp.port, watch: false,
     listening: pp.port ? await isPortListening(pp.port) : null,
+  })));
+  const watched = await Promise.all((proj.watchPorts || []).map(async (w) => ({
+    label: w.label || ("watch:" + w.port), port: w.port, watch: true,
+    listening: w.port ? await isPortListening(w.port) : null,
   })));
   return {
     id,
@@ -126,7 +129,7 @@ async function statusFor(id) {
     listening: await isPortListening(proj.readyPort || proj.port),
     pids: s ? s.procs.map((p) => p.pid).filter(Boolean) : [],
     port: proj.port,
-    procs: procStatus, // [{ label, port, listening }]
+    procs: [...launched, ...watched], // [{ label, port, watch, listening }]
   };
 }
 
@@ -233,7 +236,8 @@ const server = http.createServer(async (req, res) => {
           id: p.id, name: p.name, tagline: p.tagline, essence: p.essence,
           category: p.category, accent: p.accent, port: p.port,
           openPath: p.openPath, byline: p.byline, notes: p.notes,
-          procs: projProcs(p), // [{ label, port }] — so cards can show backend ports
+          procs: projProcs(p),        // [{ label, port }] — launched procs
+          watchPorts: p.watchPorts || [], // [{ label, port }] — externally-managed deps
         })),
       });
     }
