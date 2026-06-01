@@ -78,16 +78,31 @@ Treat the procs as a **starting guess** and verify against reality:
   `procs`; set `readyPort` to the one you open in the browser. If a frontend
   dev-proxy hardcodes a backend port, run the backend on **exactly** that port.
 - **Backends/dependencies — prefer to launch them.** If you can find a reliable
-  start command, add the backend as a normal `proc` (or a `watchPort` *with* a
-  `cmd`) so the gallery launches it. Every port chip is clickable: clicking a
-  down chip starts that proc.
-  - A `watchPort` with a launch spec gets started on click:
+  start command, add the backend as a normal `proc` so the gallery launches it
+  alongside the frontend. Every port chip is clickable: clicking a down chip
+  starts that proc. A backend often has its own port in config (not args) — set
+  `port` on its proc def so its chip polls the right port (e.g. Spring's `:8080`
+  from `application.yml`).
+  - **Runtime mismatch is solvable, not a blocker.** If the project needs a
+    different runtime than what's on PATH (e.g. a Spring Boot 3 service needs
+    JDK 17+ but `java` is 8, or a Python service needs a venv), don't give up —
+    point the proc at the right runtime via its `env`:
+    `env: { "JAVA_HOME": "/opt/homebrew/opt/openjdk@21/.../Home" }`, or use the
+    venv's interpreter as `cmd`. Install the runtime first if missing
+    (`brew install openjdk@21`), confirm it boots manually once, then wire it.
+  - **Heavy deps (DB/auth):** check if they're already satisfied before assuming
+    they block. A local Postgres may already be running with the right DB; an
+    app's `dev` profile may skip real auth (a dev-token/header path). Match the
+    project's documented dev setup (its brief/README) — profile flags, a dev
+    secret env var, a frontend dev-token — so data actually loads, not just the
+    process boots.
+  - A `watchPort` with a launch spec also starts on click:
     `"watchPorts": [{ "label": "api", "port": 8080, "cmd": "./mvnw", "args": ["spring-boot:run"], "cwd": "/abs/backend" }]`
-  - Only when a backend is genuinely too fragile to auto-boot (needs a specific
-    JDK + Postgres + Auth0 that may not be set up) — leave off `cmd` and add a
-    `startHint` instead: `{ "label": "api", "port": 8080, "startHint": "cd backend && ./mvnw spring-boot:run (needs Java 17+, Postgres :5432)" }`.
-    The gallery polls it, shows a dashed chip, and clicking it surfaces +
-    copies that command instead of launching.
+  - Only when a dependency is genuinely external/unprovisionable — leave off
+    `cmd` and add a `startHint`:
+    `{ "label": "db", "port": 5432, "startHint": "start postgres yourself" }`.
+    The gallery polls it, shows a dashed chip, and clicking it surfaces + copies
+    that command instead of launching.
 - **Data deps** (Postgres/Docker, a `.env` with keys): add to `watchPorts` if
   there's a port worth showing (e.g. Postgres `:5432`), and note them; don't
   try to provision them.
